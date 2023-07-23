@@ -45,6 +45,14 @@ class AlgoStrategy(gamelib.AlgoCore):
         SP = 0
         # This is a good place to do initial setup
         self.scored_on_locations = []
+        unimpbaseturrets = [[0, 13], [1, 13], [4, 9], [8, 5]]
+        unimpbasewalls = [[2, 13], [3, 13], [1, 12], [2, 11], [3, 10], [5, 8], [6, 7], [7, 6], [9, 4]]
+        importantbasewalls = [[24, 13], [24, 12], [23, 11], [22, 10], [20, 8], [19, 7], [18, 6], [16, 4], [15, 3], [14, 3], [13, 3], [12, 3], [11, 3], [10, 3], [14, 2]]
+        importantbaseturrets = [[25, 13], [27, 13], [17, 5], [21, 9]]
+        additionaldefense = []
+        supports = [[[18, 7], [19, 8]], [[12, 4], [13, 4]], [[6, 8], [7, 7]]]
+        extraturrets = [[10, 12], [15, 12], [5, 11], [20, 11], [8, 10], [17, 10], [11, 9], [14, 9], [10, 7], [15, 7]]
+        self.list = [unimpbasewalls, unimpbaseturrets, importantbaseturrets, importantbasewalls, additionaldefense, supports, extraturrets]
 
     def on_turn(self, turn_state):
         """
@@ -57,9 +65,10 @@ class AlgoStrategy(gamelib.AlgoCore):
         game_state = gamelib.GameState(self.config, turn_state)
         gamelib.debug_write('Performing turn {} of your custom algo strategy'.format(game_state.turn_number))
         game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
-
-        ret = self.random_strat(turn_state, game_state)
-        gamelib.debug_write(ret)
+        self.mp = game_state._player_resources[0]['MP']
+        self.sp = game_state._player_resources[0]['SP']
+        self.reactive_corner_def(game_state)
+        self.attacker(game_state)
         game_state.submit_turn()
 
 
@@ -67,6 +76,58 @@ class AlgoStrategy(gamelib.AlgoCore):
     NOTE: All the methods after this point are part of the sample starter-algo
     strategy and can safely be replaced for your custom algo.
     """
+
+    def get_mp(self, game_state):
+        return game_state._player_resources[0]['MP']
+    
+    def get_sp(self, game_state):
+        return game_state._player_resources[0]['SP']
+
+    # def attacker(self, game_state):
+
+
+    def reactive_corner_def(self, game_state):
+        unimpbasewalls, unimpbaseturrets, importantbaseturrets, importantbasewalls, additionaldefense, supports, extraturrets = self.list
+        for j, container in enumerate([importantbaseturrets, importantbasewalls, unimpbaseturrets, unimpbasewalls]):
+            if self.get_sp(game_state) > 0:    
+                for i in container:
+                    if not game_state.contains_stationary_unit(i):
+                        attempt.append(i)
+                if (j % 2 == 0):
+                    game_state.attempt_spawn(TURRET, attempt)
+                else:
+                    game_state.attempt_spawn(WALL, attempt)
+            attempt = []
+        if (self.get_sp(game_state) > 0):
+            for container in [importantbaseturrets, unimpbaseturrets]:
+                if (self.get_sp(game_state) > 0):
+                    for i in container:
+                       if not game_state.game_map[i[0]][i[1]][0].upgraded:
+                           attempt.append(i)
+                    game_state.attempt_upgrade(attempt)
+                attempt = []
+        if (self.get_sp(game_state) > 0):
+            for support in supports:
+                if (self.get_sp(game_state) > 0):
+                    if game_state.contains_stationary_unit(support[0]):
+                        game_state.attempt_spawn(SUPPORT, support[0])
+                    if game_state.contains_stationary_unit(support[1]):
+                        game_state.attempt_spawn(TURRET, support[1])
+        if (self.get_sp(game_state) > 0):
+            for container in [importantbasewalls, unimpbasewalls]:
+                if (self.get_sp(game_state) > 0):
+                    for i in container:
+                       if not game_state.game_map[i[0]][i[1]][0].upgraded:
+                           attempt.append(i)
+                    game_state.attempt_upgrade(attempt)
+                attempt = []
+        if self.get_sp(game_state) > 0:    
+            for i in extraturrets:
+                if not game_state.contains_stationary_unit(i):
+                    attempt.append(i)
+            game_state.attempt_spawn(TURRET, attempt)
+            attempt = []
+
 
     def random_strat(self, turn_state, game_state):
         edges_occupied = []
@@ -259,28 +320,33 @@ class AlgoStrategy(gamelib.AlgoCore):
                 filtered.append(location)
         return filtered
 
-    def on_action_frame(self, turn_string):
-        """
-        This is the action frame of the game. This function could be called 
-        hundreds of times per turn and could slow the algo down so avoid putting slow code here.
-        Processing the action frames is complicated so we only suggest it if you have time and experience.
-        Full doc on format of a game frame at in json-docs.html in the root of the Starterkit.
-        """
-        # Let's record at what position we get scored on
-        state = json.loads(turn_string)
-        events = state["events"]
-        breaches = events["breach"]
-        for breach in breaches:
-            location = breach[0]
-            unit_owner_self = True if breach[4] == 1 else False
-            # When parsing the frame data directly, 
-            # 1 is integer for yourself, 2 is opponent (StarterKit code uses 0, 1 as player_index instead)
-            if not unit_owner_self:
-                gamelib.debug_write("Got scored on at: {}".format(location))
-                self.scored_on_locations.append(location)
-                gamelib.debug_write("All locations: {}".format(self.scored_on_locations))
-
+    # def on_action_frame(self, turn_string):
+    #     """
+    #     This is the action frame of the game. This function could be called 
+    #     hundreds of times per turn and could slow the algo down so avoid putting slow code here.
+    #     Processing the action frames is complicated so we only suggest it if you have time and experience.
+    #     Full doc on format of a game frame at in json-docs.html in the root of the Starterkit.
+    #     """
+    #     # Let's record at what position we get scored on
+    #     state = json.loads(turn_string)
+    #     events = state["events"]
+    #     breaches = events["breach"]
+    #     for breach in breaches:
+    #         location = breach[0]
+    #         unit_owner_self = True if breach[4] == 1 else False
+    #         # When parsing the frame data directly, 
+    #         # 1 is integer for yourself, 2 is opponent (StarterKit code uses 0, 1 as player_index instead)
+    #         if not unit_owner_self:
+    #             if location[1] < 13:
+    #                 if (location[1] > 3):
+    #                     if (location[0] < 14):
+    #                         self.list[4].append([location[0]-1, location[1]+1])
+    #                     else:
+    #                         self.list[4].append([location[0]+1, location[1]+1])
+    #                 else:
+    #                     self.list[4].append()
 
 if __name__ == "__main__":
     algo = AlgoStrategy()
     algo.start()
+
